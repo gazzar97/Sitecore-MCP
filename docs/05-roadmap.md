@@ -13,7 +13,11 @@
   - write tools only appear when a configured instance enables them
   - **Not done in Phase 3:** publishing (SSC has no publish endpoint; it needs Authoring GraphQL or SPE), language-version creation, move/rename/copy, presentation edits
 - Open: should the host guard allow private-network IPs by default? A hosts-file entry pointing at a shared DEV server on the office network (e.g. `devcm.example.com` → `192.168.x.x`) currently passes.
-- Next: the **Instance Knowledge Base** (first-run discovery plus reuse in every session; plan K1–K8 in [08-instance-knowledge-base.md](08-instance-knowledge-base.md)), then Phase 1b (Authoring GraphQL adapter for 10.3+) and Phase 2.
+- **Instance Knowledge Base K1–K3 done** ([08-instance-knowledge-base.md](08-instance-knowledge-base.md)):
+  - `npm run discover` catalogued a real 10.4 instance in ~15 min: 378 templates, 107 renderings, 24 placeholders, 18 layouts
+  - `sitecore_knowledge` answers template and rendering questions in ~10 ms, compared with 25–45 s live
+  - Seen on that run: the template walk dominates (~10 min); the placeholder list includes Sitecore sample and EXM placeholders
+- Next: K4 (content map, layout parsing), K5 (forms, workflows), K6–K8; then Phase 1b (Authoring GraphQL adapter for 10.3+) and Phase 2.
 
 | Phase | Theme | Scope | Exit criteria |
 |---|---|---|---|

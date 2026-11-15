@@ -258,6 +258,10 @@ export function createFakeSitecore(opts: FakeSitecoreOptions = {}) {
     recycled,
     byPath,
     writes: () => requests.filter((r) => r.method !== "GET" && !r.url.includes("/auth/login")),
+    addItem: (item: FakeItem) => {
+      items.push(item);
+      byId.set(item.id, item);
+    },
     get loginCount() {
       return loginCount;
     },

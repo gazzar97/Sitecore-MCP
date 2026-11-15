@@ -160,26 +160,41 @@ export async function discover(ctx: DiscoverContext, store: KnowledgeStore, opts
 
   // ---------------------------------------------------------------- B. sites
   await phase("sites", async () => {
+    // A site root is an item with a child named "Home" (classic: /sitecore/content/Home; SXA: Tenant/Site/Home).
+    // Look at most 3 levels down, never expand inside a found site, and cap folder fan-out.
     const data: SitesData = { sites: [], scannedRoots: [], truncated: false };
+    const MAX_EXPAND = 60;
+    const children = (id: string) => ctx.adapter.getChildren({ idOrPath: id, ...loc }, { fields: ["__Sortorder"] });
     for (const root of ctx.config.knowledge.contentRoots) {
-      const w = await walk(root, { fields: ["__Sortorder"], maxItems: 2_000 });
-      if (!w.root) continue;
-      data.scannedRoots.push(w.root.path);
-      data.truncated ||= w.truncated;
-      const all = [w.root, ...w.items];
-      const byId = new Map(all.map((i) => [i.id, i]));
-      for (const home of all.filter((i) => i.name.toLowerCase() === "home" && i.parentId)) {
-        const site = byId.get(home.parentId!);
-        if (!site) continue;
-        const isContentRoot = normalizePath(site.path).toLowerCase() === normalizePath(root).toLowerCase();
-        data.sites.push({
-          name: isContentRoot ? "website" : site.name,
-          rootId: site.id,
-          rootPath: site.path,
-          rootTemplate: site.templateName,
-          homePath: home.path,
-          folders: all.filter((i) => i.parentId === site.id && i.id !== home.id).map((i) => i.name),
-        });
+      const rootItem = await ctx.adapter.getItem({ idOrPath: root, ...loc }, { fields: ["__Sortorder"] });
+      if (!rootItem) continue;
+      data.scannedRoots.push(rootItem.path);
+      let level: { item: Item; kids?: Item[] }[] = [{ item: rootItem }];
+      for (let depth = 0; depth < 3 && level.length > 0; depth++) {
+        if (level.length > MAX_EXPAND) {
+          data.truncated = true;
+          level = level.slice(0, MAX_EXPAND);
+        }
+        const expanded = await Promise.all(level.map(async (n) => ({ item: n.item, kids: await children(n.item.id) })));
+        const next: { item: Item }[] = [];
+        for (const { item, kids } of expanded) {
+          const home = kids.find((k) => k.name.toLowerCase() === "home");
+          if (home) {
+            const isContentRoot = item.id === rootItem.id;
+            data.sites.push({
+              name: isContentRoot ? "website" : item.name,
+              rootId: item.id,
+              rootPath: item.path,
+              rootTemplate: item.templateName,
+              homePath: home.path,
+              folders: kids.filter((k) => k.id !== home.id).map((k) => k.name),
+            });
+            // Keep looking beside a root-level Home (other sites), but never inside a nested site.
+            if (!isContentRoot) continue;
+          }
+          next.push(...kids.filter((k) => k.hasChildren && k.id !== home?.id).map((k) => ({ item: k })));
+        }
+        level = next;
       }
     }
     return { data, count: data.sites.length, truncated: data.truncated };

@@ -64,6 +64,27 @@ describe("discovery", () => {
     ]);
   });
 
+  it("detects SXA-style sites and ignores nested 'Home' items inside a site", async () => {
+    const s = setup();
+    const id = (n: number) => `ffffffff-0000-0000-0000-${String(n).padStart(12, "0")}`;
+    const folder = "f0000000-0000-0000-0000-000000000000";
+    const add = (n: number, name: string, parent: string) =>
+      s.fake.addItem({ id: id(n), name, parent, template: folder, templateName: "Folder", fields: {} });
+    add(1, "Tenant", "0de95ae4-41ab-4d01-9eb0-67441b7c2450");
+    add(2, "MySite", id(1));
+    add(3, "Home", id(2));
+    add(4, "Data", id(2));
+    add(5, "Dictionary", id(4));
+    add(6, "Home", id(5)); // a dictionary folder named Home: not a site
+    await discover(await s.registry.get("local"), s.registry.knowledgeStore("local"), { sections: ["sites"] });
+    const sites = (await s.registry.knowledgeStore("local").readSection("sites"))!.data.sites;
+    expect(sites.map((x) => `${x.name}:${x.homePath}`)).toEqual([
+      "website:/sitecore/content/Home",
+      "MySite:/sitecore/content/Tenant/MySite/Home",
+    ]);
+    expect(sites[1]!.folders).toEqual(["Data"]);
+  });
+
   it("catalogues templates with kinds, fields, insert options and links to renderings", async () => {
     const { store } = await runDiscovery();
     const data = (await store.readSection("templates"))!.data;
