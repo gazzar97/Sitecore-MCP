@@ -1,0 +1,32 @@
+{
+  "defaultInstance": "projectA",
+  "allowedHosts": [],
+  "output": { "maxFieldLength": 500 },
+  "instances": {
+    "projectA": {
+      "cmUrl": "https://projecta-cm.localhost",
+      "type": "docker",
+      "auth": {
+        "mode": "ssc",
+        "domain": "sitecore",
+        "username": "admin",
+        "passwordEnv": "PROJECTA_SC_PASSWORD"
+      },
+      "allowInsecureTls": true,
+      "defaultDatabase": "master",
+      "defaultLanguage": "en",
+      "logs": { "source": "docker", "container": "projecta-cm-1" }
+    },
+    "projectB": {
+      "cmUrl": "https://sc104.dev.local",
+      "type": "iis",
+      "auth": {
+        "mode": "ssc",
+        "username": "admin",
+        "passwordEnv": "PROJECTB_SC_PASSWORD"
+      },
+      "allowedHosts": ["sc104.dev.local"],
+      "logs": { "source": "file", "path": "C:/inetpub/wwwroot/sc104.dev.local/App_Data/logs" }
+    }
+  }
+}

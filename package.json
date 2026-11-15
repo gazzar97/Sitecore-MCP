@@ -1,0 +1,37 @@
+{
+  "name": "sitecore-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for local Sitecore development instances (read-only Phase 1).",
+  "type": "module",
+  "bin": {
+    "sitecore-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist",
+    "sitecore-mcp.config.example.json",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.16"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node dist/index.js",
+    "ping": "node dist/cli/ping.js",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.130",
+    "typescript": "~5.9",
+    "vitest": "^1.6.1"
+  }
+}
