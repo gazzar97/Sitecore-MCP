@@ -40,12 +40,6 @@ Create `~/.sitecore-mcp/config.json` (on Windows: `C:\Users\<you>\.sitecore-mcp\
 - `allowInsecureTls: true` accepts the self-signed certificate a local Sitecore install creates.
 - `logs` is optional. For Docker use `{ "source": "docker", "container": "<cm container name>" }`.
 
-Check that it connects:
-
-```bash
-SITECORE_PASSWORD=<your admin password> npm run ping
-# OK    local  https://mysite.dev.local  Sitecore 10.4.0...
-```
 
 ### 3. Add it to Claude Code and start asking
 
