@@ -75,6 +75,26 @@ Example requests:
 - *"Find items under /sitecore/content/MySite/Home whose Title contains 'contact'."*
 - *"Show the last 10 errors from the Sitecore log."*
 
+## Teach it your instance (knowledge base)
+
+Run discovery once per instance. It's read-only against Sitecore and writes to `~/.sitecore-mcp/knowledge/<instance>/`:
+
+```bash
+PROJECTA_SC_PASSWORD=<password> npm run discover -- projectA
+```
+
+It catalogues the environment (version, languages, modules), sites, project templates (fields, base templates, insert options, page/datasource/folder kind), renderings (type, component, datasource template and location), placeholders and layouts. It then writes:
+- `overview.md`, a short summary
+- `notes.md`, for your own conventions; discovery never overwrites it
+
+After that, start sessions with *"Load the Sitecore knowledge"*. Claude calls `sitecore_knowledge`, which answers structure questions instantly with no Sitecore calls. Refresh after deployments, all at once or per section:
+
+```bash
+PROJECTA_SC_PASSWORD=<password> npm run discover -- projectA --sections templates,renderings
+```
+
+The scope is configurable per instance under `"knowledge"`: `templateRoots`, `renderingRoots`, `excludePaths` (SXA/JSS vendor folders are excluded by default), `contentRoots` and limits. See [08-instance-knowledge-base.md](08-instance-knowledge-base.md).
+
 ## Enabling writes (create / update / delete)
 
 Writes are **off** by default. Turn them on per instance in the config, then restart your AI client:

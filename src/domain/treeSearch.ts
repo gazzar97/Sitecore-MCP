@@ -1,4 +1,4 @@
-import { normalizeId } from "../util/ids.js";
+import { isPathAtOrUnder, normalizeId } from "../util/ids.js";
 import type { ContentAdapter, Item, ItemRef } from "./types.js";
 
 export interface TreeSearchCriteria {
@@ -17,6 +17,10 @@ export interface TreeSearchOptions {
   fields?: string[];
   /** Parallel children requests per batch (default 6). */
   concurrency?: number;
+  /** Also load standard fields (__Base template, __Masters, ...) for `fields`. */
+  includeStandardFields?: boolean;
+  /** Subtrees to skip entirely (not visited, not matched). */
+  skipPaths?: string[];
 }
 
 export interface TreeSearchResult {
@@ -37,7 +41,11 @@ export async function treeSearch(
   opts: TreeSearchOptions,
 ): Promise<TreeSearchResult> {
   const fields = [...new Set([...(opts.fields ?? []), ...(criteria.fieldName ? [criteria.fieldName] : [])])];
-  const readOpts = { fields: fields.length > 0 ? fields : ["__Sortorder"] };
+  const readOpts = {
+    fields: fields.length > 0 ? fields : ["__Sortorder"],
+    includeStandardFields: opts.includeStandardFields,
+  };
+  const skip = (path: string) => (opts.skipPaths ?? []).some((s) => isPathAtOrUnder(path, s));
   const matches: Item[] = [];
   let visited = 0;
   let frontier: string[] = [root.idOrPath];
@@ -50,6 +58,7 @@ export async function treeSearch(
       const batch = frontier.slice(b, b + batchSize);
       const results = await Promise.all(batch.map((parent) => adapter.getChildren({ ...root, idOrPath: parent }, readOpts)));
       for (const child of results.flat()) {
+        if (skip(child.path)) continue;
         visited++;
         if (matchesCriteria(child, criteria)) {
           matches.push(child);

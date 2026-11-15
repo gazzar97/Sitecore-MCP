@@ -27,6 +27,13 @@ export function parseIdList(value: string | undefined): string[] {
     .map(normalizeId);
 }
 
+/** True if `path` equals `root` or is below it (case-insensitive, as in Sitecore). */
+export function isPathAtOrUnder(path: string, root: string): boolean {
+  const p = normalizePath(path).toLowerCase();
+  const r = normalizePath(root).toLowerCase();
+  return p === r || p.startsWith(`${r}/`);
+}
+
 export function normalizePath(path: string): string {
   let p = path.trim().replace(/\\/g, "/");
   if (!p.startsWith("/")) p = `/${p}`;

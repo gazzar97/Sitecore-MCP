@@ -21,7 +21,8 @@
     "test": "vitest run",
     "start": "node dist/index.js",
     "ping": "node dist/cli/ping.js",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "discover": "node dist/cli/discover.js"
   },
   "license": "UNLICENSED",
   "private": true,

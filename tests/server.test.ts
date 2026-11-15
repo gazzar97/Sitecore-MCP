@@ -42,6 +42,7 @@ describe("MCP server", () => {
       "sitecore_instances_list",
       "sitecore_item_children",
       "sitecore_item_get",
+      "sitecore_knowledge",
       "sitecore_logs_tail",
       "sitecore_ping",
       "sitecore_search",

@@ -54,6 +54,37 @@ export const instanceSchema = z.object({
   writeRoots: z.array(z.string().min(1)).default(["/sitecore/content"]),
   /** Refuse to delete an item whose subtree has more items than this. */
   maxDeleteItems: z.number().int().min(1).max(1000).default(50),
+  /** Instance knowledge base (docs/08-instance-knowledge-base.md): discovery scope and limits. */
+  knowledge: z
+    .object({
+      staleAfterDays: z.number().int().positive().default(14),
+      templateRoots: z
+        .array(z.string().min(1))
+        .default([
+          "/sitecore/templates/Project",
+          "/sitecore/templates/Feature",
+          "/sitecore/templates/Foundation",
+          "/sitecore/templates/User Defined",
+        ]),
+      renderingRoots: z
+        .array(z.string().min(1))
+        .default(["/sitecore/layout/Renderings/Project", "/sitecore/layout/Renderings/Feature"]),
+      /** Vendor subtrees inside the roots above that are not catalogued (SXA, JSS). */
+      excludePaths: z
+        .array(z.string().min(1))
+        .default([
+          "/sitecore/templates/Foundation/Experience Accelerator",
+          "/sitecore/templates/Feature/Experience Accelerator",
+          "/sitecore/templates/Foundation/JavaScript Services",
+          "/sitecore/templates/Feature/JavaScript Services",
+          "/sitecore/layout/Renderings/Feature/Experience Accelerator",
+        ]),
+      contentRoots: z.array(z.string().min(1)).default(["/sitecore/content"]),
+      /** Items walked under templateRoots (templates + sections + fields). */
+      maxTemplateItems: z.number().int().min(1).default(20_000),
+      maxRenderingItems: z.number().int().min(1).default(3_000),
+    })
+    .default({}),
 });
 
 export const configSchema = z
@@ -62,6 +93,8 @@ export const configSchema = z
     allowedHosts: z.array(z.string().min(1)).default([]),
     /** JSONL audit log of every write attempt. Default: ~/.sitecore-mcp/audit.log */
     auditLogPath: z.string().min(1).optional(),
+    /** Folder for instance knowledge bases. Default: ~/.sitecore-mcp/knowledge */
+    knowledgePath: z.string().min(1).optional(),
     output: z
       .object({
         maxFieldLength: z.number().int().positive().default(500),

@@ -1,4 +1,5 @@
 import { AuditLog } from "./audit/auditLog.js";
+import { KnowledgeStore, defaultKnowledgeRoot } from "./knowledge/store.js";
 import { SscItemServiceAdapter } from "./adapters/ssc/sscAdapter.js";
 import { SscClient } from "./adapters/ssc/sscClient.js";
 import { DockerLogSource } from "./adapters/logs/dockerSource.js";
@@ -23,6 +24,8 @@ export interface RegistryDeps {
   transportFactory?: (cfg: InstanceConfig) => HttpTransport;
   lookup?: LookupAll;
   audit?: AuditLog;
+  /** Override the knowledge root (tests). */
+  knowledgeRoot?: string;
 }
 
 /** Holds configured instances and lazily builds their adapters. */
@@ -36,6 +39,12 @@ export class InstanceRegistry {
     private readonly deps: RegistryDeps = {},
   ) {
     this.audit = deps.audit ?? new AuditLog("config" in state ? state.config.auditLogPath : undefined);
+  }
+
+  /** Local knowledge base of an instance (docs/08-instance-knowledge-base.md). */
+  knowledgeStore(name: string): KnowledgeStore {
+    const fromConfig = "config" in this.state ? this.state.config.knowledgePath : undefined;
+    return new KnowledgeStore(fromConfig ?? this.deps.knowledgeRoot ?? defaultKnowledgeRoot(), name);
   }
 
   /** True if any configured instance allows the given write permission. */

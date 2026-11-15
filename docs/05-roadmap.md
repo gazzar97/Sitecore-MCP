@@ -13,7 +13,7 @@
   - write tools only appear when a configured instance enables them
   - **Not done in Phase 3:** publishing (SSC has no publish endpoint; it needs Authoring GraphQL or SPE), language-version creation, move/rename/copy, presentation edits
 - Open: should the host guard allow private-network IPs by default? A hosts-file entry pointing at a shared DEV server on the office network (e.g. `devcm.example.com` → `192.168.x.x`) currently passes.
-- Next: Phase 1b (Authoring GraphQL adapter for 10.3+), then Phase 2.
+- Next: the **Instance Knowledge Base** (first-run discovery plus reuse in every session; plan K1–K8 in [08-instance-knowledge-base.md](08-instance-knowledge-base.md)), then Phase 1b (Authoring GraphQL adapter for 10.3+) and Phase 2.
 
 | Phase | Theme | Scope | Exit criteria |
 |---|---|---|---|

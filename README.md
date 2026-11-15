@@ -63,6 +63,16 @@ Start a **new** Claude Code session, run `/mcp` to confirm `sitecore` is connect
 - *"Find items under /sitecore/content/MySite whose Title contains 'contact'."*
 - *"Show the last 10 errors from the Sitecore log and explain what's wrong."*
 
+## Teach it your instance (recommended)
+
+Run a one-time, read-only discovery so Claude knows your sites, templates, renderings and placeholders without slow live lookups:
+
+```bash
+SITECORE_PASSWORD=<your admin password> npm run discover -- local
+```
+
+Then start sessions with *"Load the Sitecore knowledge"*. Add your team's conventions to `~/.sitecore-mcp/knowledge/local/notes.md`, and Claude will follow them. Details: [knowledge base](docs/08-instance-knowledge-base.md).
+
 ## Allowing Claude to edit content (optional)
 
 Out of the box it's **read-only**. To allow creating and updating items, add this to your instance in `config.json` and start a new Claude Code session:
@@ -93,6 +103,7 @@ Claude Code also asks you to approve each write.
 | `sitecore_template_get` | Template sections, fields and inheritance |
 | `sitecore_search` | Search the live tree under a root, or full-text through the content index |
 | `sitecore_logs_tail` | Recent log entries filtered by level or text |
+| `sitecore_knowledge` | Instant answers from the local knowledge base (after `npm run discover`) |
 | `sitecore_item_create` / `sitecore_item_update` / `sitecore_item_delete` | Only when enabled in config (see above) |
 
 ## Something not working?
@@ -118,6 +129,7 @@ More detail is in [Getting started](docs/07-getting-started.md): Docker, multipl
 | 5 | [Roadmap](docs/05-roadmap.md) | Phases, status and what's next |
 | 6 | [Open questions](docs/06-open-questions.md) | Decisions still open |
 | 7 | [Getting started](docs/07-getting-started.md) | Full setup, configuration reference, troubleshooting |
+| 8 | [Instance knowledge base](docs/08-instance-knowledge-base.md) | First-run discovery of templates, renderings, placeholders and sites, reused every session (K1–K3 done; content and forms planned) |
 
 ## Development
 

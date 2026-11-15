@@ -9,12 +9,8 @@ export type WriteOperation = "create" | "update" | "delete";
 /** Never writable, regardless of writeRoots. */
 export const BLOCKED_PATHS = ["/sitecore/system", "/sitecore/templates/system", "/sitecore/layout/system"];
 
-/** True if `path` equals `root` or is below it (case-insensitive, as in Sitecore). */
-export function isAtOrUnder(path: string, root: string): boolean {
-  const p = normalizePath(path).toLowerCase();
-  const r = normalizePath(root).toLowerCase();
-  return p === r || p.startsWith(`${r}/`);
-}
+export { isPathAtOrUnder as isAtOrUnder } from "../util/ids.js";
+import { isPathAtOrUnder as isAtOrUnder } from "../util/ids.js";
 
 export function isStrictlyUnder(path: string, root: string): boolean {
   return isAtOrUnder(path, root) && normalizePath(path).toLowerCase() !== normalizePath(root).toLowerCase();
