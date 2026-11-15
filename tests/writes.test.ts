@@ -126,21 +126,21 @@ describe("updateItem", () => {
     const { fake, ctx } = setup();
     const res = await updateItem(ctx, {
       idOrPath: "/sitecore/content/Home/About",
-      fields: { Title: "About NBE" },
+      fields: { Title: "About the company" },
       language: "en",
       dryRun: true,
     });
-    expect(res.changes).toEqual([{ field: "Title", before: "About us", after: "About NBE", changed: true }]);
+    expect(res.changes).toEqual([{ field: "Title", before: "About us", after: "About the company", changed: true }]);
     expect(fake.writes()).toHaveLength(0);
   });
 
   it("writes only changed fields and confirms by re-reading", async () => {
     const { fake, ctx } = setup();
-    const res = await updateItem(ctx, { idOrPath: IDS.about, fields: { Title: "About NBE", Body: "" }, language: "en", dryRun: false });
+    const res = await updateItem(ctx, { idOrPath: IDS.about, fields: { Title: "About the company", Body: "" }, language: "en", dryRun: false });
     expect(res).toMatchObject({ updated: true, version: 1 });
     expect(res.notApplied).toBeUndefined();
-    expect(fake.byPath("/sitecore/content/Home/About")?.fields.Title).toBe("About NBE");
-    expect(JSON.parse(fake.writes()[0]!.body!)).toEqual({ Title: "About NBE" });
+    expect(fake.byPath("/sitecore/content/Home/About")?.fields.Title).toBe("About the company");
+    expect(JSON.parse(fake.writes()[0]!.body!)).toEqual({ Title: "About the company" });
   });
 
   it("skips no-op updates and rejects unknown fields", async () => {

@@ -3,16 +3,16 @@
 ## Status (2026-11-15)
 
 - **Phase 1 implemented** (read-only MVP, SSC adapter): all Phase 1 tools, config/profiles, local-host allowlist, log tail (file + docker). Unit tests and in-memory MCP integration tests pass against a fake SSC server.
-- **Verified against a real instance** (`nbesc.dev.local`, Sitecore 10.4.0.010422 on IIS): all 7 tools work through the stdio server (`npm run smoke`). The test found two SSC behaviours the fake server didn't model, now fixed and covered by tests:
+- **Verified against a real local instance** (Sitecore 10.4 on IIS): all 7 read tools work through the stdio server (`npm run smoke`). The test found two SSC behaviours the fake server didn't model, now fixed and covered by tests:
   1. `fields=` also filters item properties (`ItemID`, `ItemName`, …), so they must be requested explicitly.
   2. `includeMetadata=true` returns per-field definitions, not item properties, so it is never sent.
-- Performance: that instance answers each dynamic request in ~4 s (server-side). Template and tree walks now run in parallel (`maxConcurrency`). Template reads went from 53 s to 25 s, and the largest template finishes in 45 s instead of timing out.
-- **Phase 3 (guarded writes) implemented and verified on `nbesc.dev.local`:**
+- Performance: on a slow instance (seconds per request, server-side), template and tree walks now run in parallel (`maxConcurrency`), roughly halving their time and keeping large templates under the client timeout.
+- **Phase 3 (guarded writes) implemented and verified on a real local instance:**
   - `sitecore_item_create`, `sitecore_item_update` and `sitecore_item_delete`, with dry-run, field-name validation, duplicate-name and subtree checks, re-reading after each write, and a JSONL audit log
   - SQL confirmed that deletes land in the `recyclebin` archive
   - write tools only appear when a configured instance enables them
   - **Not done in Phase 3:** publishing (SSC has no publish endpoint; it needs Authoring GraphQL or SPE), language-version creation, move/rename/copy, presentation edits
-- Open: should the host guard allow private-network IPs by default? `nbedevcm.linakis.com` (192.168.33.35, likely a shared DEV server) currently passes.
+- Open: should the host guard allow private-network IPs by default? A hosts-file entry pointing at a shared DEV server on the office network (e.g. `devcm.example.com` → `192.168.x.x`) currently passes.
 - Next: Phase 1b (Authoring GraphQL adapter for 10.3+), then Phase 2.
 
 | Phase | Theme | Scope | Exit criteria |

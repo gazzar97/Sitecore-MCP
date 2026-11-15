@@ -2,7 +2,7 @@
 // Write smoke test against a REAL local instance through the stdio MCP server.
 // It only touches a scratch folder: create -> update -> guard checks -> delete (to Recycle Bin).
 //
-// Usage: NBE_SC_PASSWORD=... SITECORE_MCP_CONFIG=<config with write+delete, writeRoots=[scratch]> \
+// Usage: PROJECTA_SC_PASSWORD=... SITECORE_MCP_CONFIG=<config with write+delete, writeRoots=[scratch]> \
 //        node scripts/smoke-writes.mjs <scratchFolderPath> <templatePath> <fieldName> [instance]
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";

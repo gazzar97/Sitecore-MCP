@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Smoke test against a REAL local instance through the stdio MCP server.
-// Usage: NBE_SC_PASSWORD=... node scripts/smoke.mjs [instance] [contentRoot]
+// Usage: PROJECTA_SC_PASSWORD=... node scripts/smoke.mjs [instance] [contentRoot]
 // Env vars are passed through to the server; nothing is written to disk.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";

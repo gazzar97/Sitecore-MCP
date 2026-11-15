@@ -1,4 +1,4 @@
-# 07 — Getting Started (Phase 1, read-only)
+# 07 — Getting Started
 
 ## Requirements
 
@@ -26,21 +26,21 @@ Passwords are **never** stored in the config. Each instance names an env var (`p
 |---|---|
 | `cmUrl` | CM base URL. Must be local: `localhost`, `*.localhost`, a loopback/private IP, a name that resolves only to local IPs (hosts file), or listed in `allowedHosts`. |
 | `auth` | `mode: "ssc"`, `domain` (default `sitecore`), `username`, `passwordEnv`. |
-| `allowInsecureTls` | `true` to accept self-signed dev certificates. |
+| `allowInsecureTls` | `true` to accept self-signed dev certificates. Usually needed on IIS installs, because Node doesn't use the Windows certificate store. |
 | `logs` | `{ "source": "file", "path": "<webroot>/App_Data/logs" }` or `{ "source": "docker", "container": "<cm container>" }`. |
 
 ## 3. Check the connection
 
 ```bash
-PROJECTA_SC_PASSWORD=b npm run ping
+PROJECTA_SC_PASSWORD=<password> npm run ping
 ```
 
 ## 4. Register with your AI client
 
-**Claude Code**
+**Claude Code** (`-s user` makes it available in every folder):
 
 ```bash
-claude mcp add sitecore --env PROJECTA_SC_PASSWORD=b --env SITECORE_MCP_CONFIG=C:/Users/me/.sitecore-mcp/config.json -- node C:/Users/MahmoudElgazaar/source/repos/sitecore-mcp/dist/index.js
+claude mcp add sitecore -s user --env PROJECTA_SC_PASSWORD=<password> -- node <path-to>/sitecore-mcp/dist/index.js
 ```
 
 **Claude Desktop / VS Code** (`mcpServers` / `servers` block):
@@ -49,13 +49,15 @@ claude mcp add sitecore --env PROJECTA_SC_PASSWORD=b --env SITECORE_MCP_CONFIG=C
 {
   "sitecore": {
     "command": "node",
-    "args": ["C:/Users/MahmoudElgazaar/source/repos/sitecore-mcp/dist/index.js"],
-    "env": { "PROJECTA_SC_PASSWORD": "b", "SITECORE_MCP_CONFIG": "C:/Users/me/.sitecore-mcp/config.json" }
+    "args": ["<path-to>/sitecore-mcp/dist/index.js"],
+    "env": { "PROJECTA_SC_PASSWORD": "<password>" }
   }
 }
 ```
 
-## Tools available in Phase 1
+Add `SITECORE_MCP_CONFIG` to `env` if your config isn't in one of the default locations. Restart the client after changing the config: the server reads it at startup.
+
+## Read tools
 
 | Tool | Purpose |
 |---|---|
@@ -67,15 +69,21 @@ claude mcp add sitecore --env PROJECTA_SC_PASSWORD=b --env SITECORE_MCP_CONFIG=C
 | `sitecore_search` | `tree` mode (live DB walk under a root) or `index` mode (content search term) |
 | `sitecore_logs_tail` | Recent log entries filtered by level/text |
 
+Example requests:
+- *"Show the content tree under /sitecore/content/MySite, 2 levels deep."*
+- *"What template does /sitecore/content/MySite/Home use, and what fields does it have?"*
+- *"Find items under /sitecore/content/MySite/Home whose Title contains 'contact'."*
+- *"Show the last 10 errors from the Sitecore log."*
+
 ## Enabling writes (create / update / delete)
 
-Writes are **off** by default. Turn them on per instance in `~/.sitecore-mcp/config.json`, then restart Claude Code (the server reads the config at startup):
+Writes are **off** by default. Turn them on per instance in the config, then restart your AI client:
 
 ```json
-"nbe": {
+"projectA": {
   "...": "...",
   "permissions": { "write": true, "delete": false },
-  "writeRoots": ["/sitecore/content/NBE"],
+  "writeRoots": ["/sitecore/content/MySite"],
   "maxDeleteItems": 50
 }
 ```
@@ -96,12 +104,24 @@ These rules always apply, whatever the config says:
 - items with children need `includeChildren=true` to be deleted
 - nothing is **published**: changes stay in `master` until you publish
 
-Example requests: *"Create a Sample Item called Test under /sitecore/content/NBE/_mcp-test with Title 'Hello'. Do a dry run first."*, *"Change the Title of …/Test to 'Hi'"*, *"Delete …/Test"*.
+Example requests:
+- *"Create a Sample Item called Test under /sitecore/content/MySite/_mcp-test with Title 'Hello'. Do a dry run first."*
+- *"Change the Title of /sitecore/content/MySite/_mcp-test/Test to 'Hi'."*
+- *"Put /sitecore/content/MySite/Home/News into the 'Sample Workflow' workflow."* (sets `__Workflow` and `__Workflow state` to the workflow's initial state)
+- *"Delete /sitecore/content/MySite/_mcp-test/Test."*
 
-To re-check write behaviour against a real instance (scratch folder only):
+## Real-instance smoke tests
+
+Read tools, through the real stdio server against your configured instance:
 
 ```bash
-MSYS_NO_PATHCONV=1 NBE_SC_PASSWORD=b SITECORE_MCP_CONFIG=<config with writeRoots=[scratch]> node scripts/smoke-writes.mjs /sitecore/content/NBE/_mcp-test "/sitecore/templates/Sample/Sample Item" Title
+PROJECTA_SC_PASSWORD=<password> npm run smoke -- [instance] [contentRoot]
+```
+
+Write tools, against a scratch folder only. Use a separate config whose `writeRoots` is just that folder:
+
+```bash
+MSYS_NO_PATHCONV=1 PROJECTA_SC_PASSWORD=<password> SITECORE_MCP_CONFIG=<scratch-config.json> node scripts/smoke-writes.mjs /sitecore/content/MySite/_mcp-test "/sitecore/templates/Sample/Sample Item" Title
 ```
 
 (`MSYS_NO_PATHCONV=1` stops Git Bash rewriting `/sitecore/...` arguments into Windows paths.)
@@ -116,15 +136,7 @@ MSYS_NO_PATHCONV=1 NBE_SC_PASSWORD=b SITECORE_MCP_CONFIG=<config with writeRoots
 | TLS certificate errors | Trust the dev cert (mkcert / Docker init script) or set `allowInsecureTls: true`. |
 | `docker logs` shows no Sitecore entries | Sitecore containers write log files inside the container. Mount `C:\inetpub\wwwroot\App_Data\logs` to a host folder and use `"source": "file"`. |
 | Version shows "unknown" | `/sitecore/shell/sitecore.version.xml` isn't readable. Harmless. |
-| Every call takes ~4 s; template/tree tools take 20–45 s | The CM itself is slow per request (compare `curl -w '%{time_starttransfer}'` on any `/sitecore/api/ssc` URL). On `nbesc.dev.local` this lined up with a custom OpenTelemetry module repeatedly failing to reach `127.0.0.1:4318` (connection refused on Windows costs ~2 s per attempt). Start an OTLP collector or disable the exporter locally. `maxConcurrency` (default 6) runs template/tree requests in parallel to hide some of the delay. |
-
-## Real-instance smoke test
-
-Runs every tool through the real stdio server against your configured instance:
-
-```bash
-NBE_SC_PASSWORD=b npm run smoke -- [instance] [contentRoot]
-```
+| Every call takes seconds; template/tree tools take tens of seconds | The CM itself is slow per request (compare `curl -w '%{time_starttransfer}'` on any `/sitecore/api/ssc` URL). A common cause is a module in the request pipeline that keeps trying to reach a local service that isn't running (e.g. a telemetry exporter); on Windows each refused local connection costs ~2 s. Start that service or disable it locally. `maxConcurrency` (default 6) runs template/tree requests in parallel to hide some of the delay. |
 
 ## Development
 

@@ -102,7 +102,7 @@ Decisions marked **Provisional** were taken to start Phase 1 while the open ques
 
 | # | Decision | Status | Rationale |
 |---|---|---|---|
-| ADR-01 | **TypeScript / Node**, `@modelcontextprotocol/sdk` 1.x, stdio transport. Node ≥ 18.16 (built-in `node:http(s)` instead of undici so it runs on the current dev machine's Node 18). | Provisional | Most mature MCP SDK; no Sitecore assemblies needed since we talk HTTP. |
+| ADR-01 | **TypeScript / Node**, `@modelcontextprotocol/sdk` 1.x, stdio transport. Node ≥ 18.16 (built-in `node:http(s)` instead of undici so it also runs on Node 18). | Provisional | Most mature MCP SDK; no Sitecore assemblies needed since we talk HTTP. |
 | ADR-02 | **Phase 1 adapter = SSC ItemService** (`/sitecore/api/ssc/item`, cookie login). Authoring GraphQL becomes a second `ContentAdapter` in Phase 1b. | Provisional (changed from the original proposal) | SSC exists on 9.x–10.x with no extra setup and its contract is well known. The Authoring GraphQL schema and Identity Server client setup need checking against a real instance before we build on them. The `ContentAdapter` interface (`src/domain/types.ts`) keeps tools independent of the API used. |
 | ADR-03 | No SPE in v1 | Provisional | Arbitrary code execution risk; revisit in Phase 4. |
 | ADR-04 | Target Sitecore 10.x; 9.x expected to work via SSC (untested) | Provisional | |

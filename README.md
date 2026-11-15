@@ -9,7 +9,7 @@ An MCP (Model Context Protocol) server that lets AI assistants (Claude Code, Cla
 ```bash
 npm install && npm run build
 cp sitecore-mcp.config.example.json ~/.sitecore-mcp/config.json   # then edit
-PROJECTA_SC_PASSWORD=b npm run ping
+PROJECTA_SC_PASSWORD=<password> npm run ping
 ```
 
 ## Planning documents
