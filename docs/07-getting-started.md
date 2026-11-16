@@ -93,7 +93,7 @@ After that, start sessions with *"Load the Sitecore knowledge"*. Claude calls `s
 PROJECTA_SC_PASSWORD=<password> npm run discover -- projectA --sections templates,renderings
 ```
 
-The scope is configurable per instance under `"knowledge"`: `templateRoots`, `renderingRoots`, `excludePaths` (SXA/JSS vendor folders are excluded by default), `contentRoots` and limits. See [08-instance-knowledge-base.md](08-instance-knowledge-base.md).
+The scope is configurable per instance under `"knowledge"`: `templateRoots`, `renderingRoots`, `excludePaths` (SXA/JSS vendor folders are excluded by default), `contentRoots` and limits (`maxContentItems`, `samplesPerTemplate`, `maxSampledPages` for the content map). See [08-instance-knowledge-base.md](08-instance-knowledge-base.md).
 
 ## Enabling writes (create / update / delete)
 

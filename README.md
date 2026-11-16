@@ -129,7 +129,7 @@ More detail is in [Getting started](docs/07-getting-started.md): Docker, multipl
 | 5 | [Roadmap](docs/05-roadmap.md) | Phases, status and what's next |
 | 6 | [Open questions](docs/06-open-questions.md) | Decisions still open |
 | 7 | [Getting started](docs/07-getting-started.md) | Full setup, configuration reference, troubleshooting |
-| 8 | [Instance knowledge base](docs/08-instance-knowledge-base.md) | First-run discovery of templates, renderings, placeholders and sites, reused every session (K1–K3 done; content and forms planned) |
+| 8 | [Instance knowledge base](docs/08-instance-knowledge-base.md) | First-run discovery of templates, renderings, placeholders and sites, reused every session (K1–K4 done: incl. content map, page types and rendering usage; forms and workflows planned) |
 
 ## Development
 

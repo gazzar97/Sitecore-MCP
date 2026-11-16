@@ -83,6 +83,12 @@ export const instanceSchema = z.object({
       /** Items walked under templateRoots (templates + sections + fields). */
       maxTemplateItems: z.number().int().min(1).default(20_000),
       maxRenderingItems: z.number().int().min(1).default(3_000),
+      /** Content map: items walked per site. */
+      maxContentItems: z.number().int().min(1).default(3_000),
+      /** Content map: pages per template whose layout is read. */
+      samplesPerTemplate: z.number().int().min(0).max(20).default(3),
+      /** Content map: total sampled pages across all sites (bounds layout reads). */
+      maxSampledPages: z.number().int().min(0).default(200),
     })
     .default({}),
 });

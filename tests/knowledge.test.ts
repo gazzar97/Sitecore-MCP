@@ -6,12 +6,12 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config/load.js";
 import { InstanceRegistry } from "../src/instances.js";
-import { discover } from "../src/knowledge/discover.js";
+import { discover, linkTemplates } from "../src/knowledge/discover.js";
 import { queryKnowledge, type QueryArgs } from "../src/knowledge/query.js";
 import { KnowledgeStore, NOTES_TEMPLATE } from "../src/knowledge/store.js";
-import type { SectionName } from "../src/knowledge/types.js";
+import type { DiscoverySection, KnowledgeTemplate } from "../src/knowledge/types.js";
 import { createServer } from "../src/server.js";
-import { createFakeSitecore } from "./fakeSitecore.js";
+import { IDS, createFakeSitecore } from "./fakeSitecore.js";
 
 const auth = { mode: "ssc", username: "admin", passwordEnv: "SC_PWD" };
 const knowledge = {
@@ -32,7 +32,7 @@ function setup() {
   return { fake, registry, root };
 }
 
-async function runDiscovery(sections?: SectionName[]) {
+async function runDiscovery(sections?: DiscoverySection[]) {
   const s = setup();
   const ctx = await s.registry.get("local");
   const store = s.registry.knowledgeStore("local");
@@ -47,8 +47,10 @@ describe("discovery", () => {
   it("is read-only and writes every section, the overview and notes", async () => {
     const { fake, store, result } = await runDiscovery();
     expect(fake.writes()).toHaveLength(0);
-    expect(Object.values(result.sections).map((s) => s?.status)).toEqual(["ok", "ok", "ok", "ok", "ok", "ok"]);
-    expect(await store.readManifest()).toMatchObject({ schemaVersion: 1, instance: "local", sitecoreVersion: "10.4.0.010422" });
+    expect(Object.values(result.sections).map((s) => s?.status)).toEqual(["ok", "ok", "ok", "ok", "ok", "ok", "ok"]);
+    const manifest = await store.readManifest();
+    expect(manifest).toMatchObject({ schemaVersion: 1, instance: "local", sitecoreVersion: "10.4.0.010422" });
+    expect(manifest!.sections.relationships).toMatchObject({ status: "ok", count: 1 });
     expect(await store.readNotes()).toBe(NOTES_TEMPLATE);
   });
 
@@ -119,6 +121,100 @@ describe("discovery", () => {
     expect(layouts.devices.map((d) => d.name)).toEqual(["Default"]);
   });
 
+  it("maps content: outline, template usage and sampled page layouts", async () => {
+    const { store } = await runDiscovery();
+    const [site] = (await store.readSection("content-map"))!.data.sites;
+    expect(site).toMatchObject({ site: "website", itemsWalked: 4, maxDepth: 3, truncated: false });
+    expect(site!.outline.map((n) => [n.path, n.depth, n.descendants])).toEqual([
+      ["/sitecore/content/Home", 1, 3],
+      ["/sitecore/content/Home/About", 2, 0],
+      ["/sitecore/content/Home/News", 2, 1],
+    ]);
+    expect(site!.templates).toEqual([
+      expect.objectContaining({
+        template: expect.objectContaining({ name: "Page" }),
+        count: 4,
+        underHome: 4,
+        minDepth: 1,
+        maxDepth: 3,
+        parentTemplates: [
+          { name: "Page", count: 3 },
+          { name: "Main section", count: 1 },
+        ],
+      }),
+    ]);
+    // samplesPerTemplate = 3, shallowest first: Big Launch is not sampled
+    expect(site!.samples.map((x) => [x.path, x.layoutSource])).toEqual([
+      ["/sitecore/content/Home", "final"],
+      ["/sitecore/content/Home/About", "shared"],
+      ["/sitecore/content/Home/News", "none"],
+    ]);
+    const home = site!.samples[0]!;
+    expect(home).toMatchObject({ layout: { name: "Main Layout" }, device: "Default" });
+    expect(home.renderings).toEqual([
+      expect.objectContaining({
+        rendering: expect.objectContaining({ name: "Promo" }),
+        placeholder: "/main/col-{11111111-2222-3333-4444-555555555555}-0",
+        params: { color: "red" }, // secret-looking params are dropped
+      }),
+      expect.objectContaining({
+        rendering: expect.objectContaining({ name: "Hero" }),
+        placeholder: "main",
+        datasource: "local:/Data/Hero",
+        datasourcePath: "/sitecore/content/Home/Data/Hero",
+      }),
+    ]);
+    expect(site!.samples[1]!.renderings[0]).toMatchObject({
+      datasource: `{${IDS.news.toUpperCase()}}`,
+      datasourcePath: "/sitecore/content/Home/News",
+    });
+  });
+
+  it("derives page types, rendering usage and placeholders in use", async () => {
+    const { store } = await runDiscovery();
+    const rel = (await store.readSection("relationships"))!.data;
+    expect(rel.sampledPages).toBe(2);
+    expect(rel.pageTypes).toEqual([
+      expect.objectContaining({
+        template: expect.objectContaining({ name: "Page" }),
+        items: 4,
+        sites: ["website"],
+        allowedUnder: ["Page"],
+        sampled: 2,
+        renderings: [
+          { rendering: expect.objectContaining({ name: "Hero" }), pages: 2, placeholders: ["main"] },
+          { rendering: expect.objectContaining({ name: "Promo" }), pages: 1, placeholders: ["col"] },
+        ],
+      }),
+    ]);
+    const hero = rel.renderingUsage.find((r) => r.rendering.name === "Hero")!;
+    expect(hero).toMatchObject({ pages: 2, pageTypes: ["Page"], datasourceFolders: ["local:/Data", "/sitecore/content/Home"] });
+    expect(rel.placeholderUsage).toEqual([
+      { key: "main", renderings: ["Hero"], pages: 2 },
+      { key: "col", renderings: ["Promo"], pages: 1 },
+    ]);
+    expect(rel.unusedRenderings).toEqual([]);
+
+    const page = (await store.readSection("templates"))!.data.templates.find((t) => t.name === "Page")!;
+    expect(page.usage).toMatchObject({ items: 4, sampled: 3, sampledWithLayout: 2 });
+  });
+
+  it("classifies a template as page when sampled items using it have a layout", () => {
+    const t = {
+      id: "{1}", name: "Landing", path: "/x", kind: "other", kindReason: "", baseTemplates: [], ownFields: [],
+      insertOptions: [], allowedUnder: [], datasourceFor: [], hasLayout: false,
+      usage: { items: 5, sampled: 2, sampledWithLayout: 2, samplePaths: [] },
+    } as KnowledgeTemplate;
+    linkTemplates([t], []);
+    expect([t.kind, t.kindReason]).toEqual(["page", "2 of 2 sampled items using it have a layout"]);
+  });
+
+  it("needs the sites section for the content map", async () => {
+    const { result } = await runDiscovery(["content-map"]);
+    expect(result.sections["content-map"]).toMatchObject({ status: "error" });
+    expect(result.sections["content-map"]!.error).toContain('needs the "sites" section');
+  });
+
   it("writes a compact overview", async () => {
     const { store } = await runDiscovery();
     const overview = (await store.readOverview())!;
@@ -127,6 +223,12 @@ describe("discovery", () => {
     expect(overview).toContain("### Page templates (1)");
     expect(overview).toContain("- Hero [json: Hero] — datasource: Hero @ ./Data");
     expect(overview).toContain("- main: Hero, Promo");
+    expect(overview).toContain("## Page types (template → pages; renderings from 2 sampled pages)");
+    expect(overview).toContain("- Page (4) — under: Page · renderings: Hero, Promo");
+    expect(overview).toContain("- website: 4 items, depth ≤ 3; top level: Home (4)");
+    expect(overview).toContain("- Hero [json: Hero] — datasource: Hero @ ./Data · on 2 sampled pages");
+    expect(overview).toContain("- main (2 pages): Hero");
+    expect(overview).toContain("- relationships: ok");
     expect(overview.length).toBeLessThan(12_000);
   });
 
@@ -174,6 +276,20 @@ describe("queryKnowledge", () => {
     expect(all.truncatedResults).toBe(true);
     const ds = (await q(store, "templates", { kind: "datasource" })) as { results: { name: string }[] };
     expect(ds.results.map((r) => r.name)).toEqual(["Hero"]);
+  });
+
+  it("answers content-map and relationships questions", async () => {
+    const { store } = await runDiscovery();
+    const summary = (await q(store, "content-map")) as { sites: { site: string; sampledPages: number }[] };
+    expect(summary.sites).toEqual([expect.objectContaining({ site: "website", sampledPages: 3 })]);
+    const site = (await q(store, "content-map", { query: "website" })) as { site: { samples: unknown[] } };
+    expect(site.site.samples).toHaveLength(3);
+    const byPath = (await q(store, "content-map", { query: "about" })) as { results: { samples: { path: string }[] }[] };
+    expect(byPath.results[0]!.samples.map((x) => x.path)).toEqual(["/sitecore/content/Home/About"]);
+
+    const rel = (await q(store, "relationships", { query: "promo" })) as Record<string, { rendering?: { name: string } }[]>;
+    expect(rel.renderingUsage!.map((r) => r.rendering!.name)).toEqual(["Promo"]);
+    expect(rel.pageTypes).toEqual([]);
   });
 
   it("reports freshness", async () => {

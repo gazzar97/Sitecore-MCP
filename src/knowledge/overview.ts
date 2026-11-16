@@ -1,5 +1,5 @@
 import type { KnowledgeStore } from "./store.js";
-import { SECTIONS, type KnowledgeTemplate, type TemplateKind } from "./types.js";
+import { SECTIONS, type KnowledgeTemplate, type SectionName, type TemplateKind } from "./types.js";
 
 const MAX_LIST = 25;
 
@@ -8,7 +8,7 @@ const MAX_LIST = 25;
  * Detail stays in the section files and is fetched through sitecore_knowledge.
  */
 export async function generateOverview(store: KnowledgeStore): Promise<string> {
-  const [manifest, env, sites, templates, renderings, placeholders, layouts] = await Promise.all([
+  const [manifest, env, sites, templates, renderings, placeholders, layouts, contentMap, relationships] = await Promise.all([
     store.readManifest(),
     store.readSection("environment"),
     store.readSection("sites"),
@@ -16,6 +16,8 @@ export async function generateOverview(store: KnowledgeStore): Promise<string> {
     store.readSection("renderings"),
     store.readSection("placeholders"),
     store.readSection("layouts"),
+    store.readSection("content-map"),
+    store.readSection("relationships"),
   ]);
   const out: string[] = [];
   const more = (n: number, max = MAX_LIST) => (n > max ? `… and ${n - max} more` : "");
@@ -31,7 +33,7 @@ export async function generateOverview(store: KnowledgeStore): Promise<string> {
   );
   out.push("");
   out.push(
-    "Use `sitecore_knowledge` with a section (templates, renderings, placeholders, sites, layouts) and a `query` for detail. " +
+    "Use `sitecore_knowledge` with a section (templates, renderings, placeholders, sites, layouts, content-map, relationships) and a `query` for detail. " +
       "Read the `notes` section for conventions. Confirm with live tools before writing.",
   );
 
@@ -42,6 +44,31 @@ export async function generateOverview(store: KnowledgeStore): Promise<string> {
       out.push(`- ${s.name}: ${s.rootPath} (home: ${s.homePath}${folders})`);
     }
     out.push(more(sites.data.sites.length));
+  }
+
+  if (contentMap) {
+    out.push("", `## Content${contentMap.data.truncated ? " (walk TRUNCATED: counts are lower bounds)" : ""}`);
+    for (const site of contentMap.data.sites.slice(0, 10)) {
+      const top = site.outline
+        .filter((n) => n.depth === 1)
+        .slice(0, 8)
+        .map((n) => `${n.path.split("/").pop()} (${n.descendants + 1})`);
+      out.push(`- ${site.site}: ${site.itemsWalked} items, depth ≤ ${site.maxDepth}; top level: ${top.join(", ") || "-"}`);
+    }
+    out.push(more(contentMap.data.sites.length, 10));
+  }
+
+  if (relationships) {
+    const r = relationships.data;
+    out.push("", `## Page types (template → pages; renderings from ${r.sampledPages} sampled pages)`);
+    for (const pt of r.pageTypes.slice(0, MAX_LIST)) {
+      const extras: string[] = [];
+      if (pt.allowedUnder.length) extras.push(`under: ${pt.allowedUnder.slice(0, 3).join(", ")}`);
+      const names = pt.renderings.map((x) => x.rendering.name);
+      extras.push(`renderings: ${names.slice(0, 8).join(", ") || (pt.sampled ? "none" : "not sampled")}${names.length > 8 ? ` +${names.length - 8}` : ""}`);
+      out.push(`- ${pt.template.name} (${pt.items}) — ${extras.join(" · ")}`);
+    }
+    out.push(more(r.pageTypes.length));
   }
 
   if (templates) {
@@ -75,14 +102,20 @@ export async function generateOverview(store: KnowledgeStore): Promise<string> {
       "",
       `## Renderings (${all.length}: ${count("json")} JSON, ${count("view")} view, ${count("controller")} controller, ${count("other")} other)`,
     );
+    const pagesUsing = new Map((relationships?.data.renderingUsage ?? []).map((u) => [u.rendering.id, u.pages]));
     for (const r of [...all].sort((a, b) => a.name.localeCompare(b.name)).slice(0, MAX_LIST)) {
       const ds = r.datasourceTemplate
         ? `datasource: ${r.datasourceTemplate.template?.name ?? r.datasourceTemplate.raw}`
         : "no datasource";
       const loc = r.datasourceLocation ? ` @ ${r.datasourceLocation}` : "";
-      out.push(`- ${r.name} [${r.type}${r.componentName ? `: ${r.componentName}` : ""}] — ${ds}${loc}`);
+      const used = relationships ? ` · on ${pagesUsing.get(r.id) ?? 0} sampled pages` : "";
+      out.push(`- ${r.name} [${r.type}${r.componentName ? `: ${r.componentName}` : ""}] — ${ds}${loc}${used}`);
     }
     out.push(more(all.length));
+    const unused = relationships?.data.unusedRenderings ?? [];
+    if (unused.length) {
+      out.push(`Not seen on sampled pages (${unused.length}): ${unused.slice(0, 15).map((u) => u.name).join(", ")}${unused.length > 15 ? " …" : ""}`);
+    }
   }
 
   if (placeholders) {
@@ -93,6 +126,14 @@ export async function generateOverview(store: KnowledgeStore): Promise<string> {
       out.push(`- ${p.key}: ${names.slice(0, 8).join(", ") || "(any)"}${names.length > 8 ? ` +${names.length - 8}` : ""}`);
     }
     out.push(more(all.length, 15));
+  }
+  const inUse = relationships?.data.placeholderUsage ?? [];
+  if (inUse.length) {
+    out.push("", "## Placeholders in use (sampled pages)");
+    for (const p of inUse.slice(0, 15)) {
+      out.push(`- ${p.key} (${p.pages} pages): ${p.renderings.slice(0, 8).join(", ")}${p.renderings.length > 8 ? ` +${p.renderings.length - 8}` : ""}`);
+    }
+    out.push(more(inUse.length, 15));
   }
 
   if (layouts) {
@@ -105,8 +146,9 @@ export async function generateOverview(store: KnowledgeStore): Promise<string> {
   }
 
   out.push("", "## Discovery status");
-  for (const name of SECTIONS) {
+  for (const name of [...SECTIONS, "relationships"] as SectionName[]) {
     const m = manifest?.sections[name];
+    if (!m && name === "relationships") continue;
     out.push(
       m
         ? `- ${name}: ${m.status}, ${m.count} items, ${m.generatedAt.slice(0, 10)}${m.truncated ? " (truncated)" : ""}${m.error ? ` — ${m.error.split("\n")[0]}` : ""}`

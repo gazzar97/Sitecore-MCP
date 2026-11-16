@@ -47,12 +47,32 @@ export const IDS = {
   layouts: "eeeeeeee-0000-0000-0000-000000000013",
   mainLayout: "eeeeeeee-0000-0000-0000-000000000014",
   devices: "eeeeeeee-0000-0000-0000-000000000015",
-  defaultDevice: "eeeeeeee-0000-0000-0000-000000000016",
+  defaultDevice: "fe5d7fdf-89c0-4d99-9aa3-b5fbd009c9f3", // Sitecore's real Default device ID
   heroTpl: "eeeeeeee-0000-0000-0000-000000000017",
   heroSection: "eeeeeeee-0000-0000-0000-000000000018",
   heroHeading: "eeeeeeee-0000-0000-0000-000000000019",
   newsFolderTpl: "eeeeeeee-0000-0000-0000-000000000020",
 };
+
+const U = (id: string) => `{${id.toUpperCase()}}`;
+const DEVICE = "{FE5D7FDF-89C0-4D99-9AA3-B5FBD009C9F3}";
+export const LAYOUT_UIDS = {
+  hero: "{00000000-0000-0000-0000-00000000000A}",
+  promo: "{00000000-0000-0000-0000-00000000000B}",
+  promoFinal: "{00000000-0000-0000-0000-00000000000C}",
+};
+/** Home: shared layout Hero + Promo; the final delta removes Promo and adds another Promo (dynamic placeholder) before Hero. */
+const homeShared =
+  `<r xmlns:xsd="http://www.w3.org/2001/XMLSchema"><d id="${DEVICE}" l="${U(IDS.mainLayout)}">` +
+  `<r uid="${LAYOUT_UIDS.hero}" id="${U(IDS.heroRendering)}" ph="main" ds="local:/Data/Hero" />` +
+  `<r uid="${LAYOUT_UIDS.promo}" id="${U(IDS.promoRendering)}" ph="main" /></d></r>`;
+const homeFinal =
+  `<r xmlns:p="p" xmlns:s="s" p:p="1"><d id="${DEVICE}">` +
+  `<r uid="${LAYOUT_UIDS.promo}" p:d="1" />` +
+  `<r uid="${LAYOUT_UIDS.promoFinal}" p:before="r[@uid='${LAYOUT_UIDS.hero}']" s:id="${U(IDS.promoRendering)}" ` +
+  `s:ph="/main/col-{11111111-2222-3333-4444-555555555555}-0" s:par="color=red&amp;apiToken=abc" /></d></r>`;
+const aboutShared =
+  `<r><d id="${DEVICE}" l="${U(IDS.mainLayout)}"><r uid="${LAYOUT_UIDS.hero}" id="${U(IDS.heroRendering)}" ph="main" ds="${U(IDS.news)}" /></d></r>`;
 
 const tpl = bare(T.template);
 const sec = bare(T.templateSection);
@@ -65,9 +85,9 @@ export function defaultItems(): FakeItem[] {
     { id: IDS.content, name: "content", parent: IDS.sitecore, template: folder, templateName: "Main section", fields: {} },
     {
       id: IDS.home, name: "Home", parent: IDS.content, template: IDS.pageTpl, templateName: "Page",
-      fields: { Title: "Welcome", Body: `<p>${"x".repeat(800)}</p>`, MetaTitle: "", __Sortorder: "100", "__Final Renderings": "<r/>" },
+      fields: { Title: "Welcome", Body: `<p>${"x".repeat(800)}</p>`, MetaTitle: "", __Sortorder: "100", __Renderings: homeShared, "__Final Renderings": homeFinal },
     },
-    { id: IDS.about, name: "About", parent: IDS.home, template: IDS.pageTpl, templateName: "Page", fields: { Title: "About us", Body: "", MetaTitle: "", __Sortorder: "200" } },
+    { id: IDS.about, name: "About", parent: IDS.home, template: IDS.pageTpl, templateName: "Page", fields: { Title: "About us", Body: "", MetaTitle: "", __Sortorder: "200", __Renderings: aboutShared } },
     { id: IDS.news, name: "News", parent: IDS.home, template: IDS.pageTpl, templateName: "Page", fields: { Title: "News", Body: "", MetaTitle: "", __Sortorder: "100" } },
     { id: IDS.article, name: "Big Launch", parent: IDS.news, template: IDS.pageTpl, templateName: "Page", fields: { Title: "Launch day", Body: "rocket", MetaTitle: "", __Sortorder: "100" } },
     { id: IDS.templates, name: "templates", parent: IDS.sitecore, template: folder, templateName: "Main section", fields: {} },

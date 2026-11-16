@@ -1,6 +1,6 @@
 # 08 — Instance Knowledge Base (first-run discovery)
 
-> Status: **K1–K3 implemented**: the knowledge store, the `sitecore_knowledge` tool and resources, and discovery of environment, sites, templates, renderings, placeholders and layouts (`npm run discover`). K4–K8 (content map, forms, workflows, background discovery, cache-aware tools) are still planned. This is the reference for how the MCP learns a Sitecore instance the first time it connects, stores what it learned, and reuses it in every later session.
+> Status: **K1–K4 implemented**: the knowledge store, the `sitecore_knowledge` tool and resources, discovery of environment, sites, templates, renderings, placeholders and layouts (`npm run discover`), and (K4) the layout XML parser, the content map with sampled page layouts, `relationships.json` and page types in `overview.md`. K4 is verified against the fake SSC server only, not yet on a real instance. K5–K8 (forms, workflows, background discovery, cache-aware tools) are still planned. This is the reference for how the MCP learns a Sitecore instance the first time it connects, stores what it learned, and reuses it in every later session.
 
 ## 1. Problem
 
@@ -219,6 +219,23 @@ SSC has no change feed. So freshness is handled by:
 }
 ```
 
+As implemented, the keys sit directly under each instance's `"knowledge"` object. These are the defaults:
+
+```json
+"knowledge": {
+  "staleAfterDays": 14,
+  "templateRoots": ["/sitecore/templates/Project", "/sitecore/templates/Feature", "/sitecore/templates/Foundation", "/sitecore/templates/User Defined"],
+  "renderingRoots": ["/sitecore/layout/Renderings/Project", "/sitecore/layout/Renderings/Feature"],
+  "excludePaths": ["… SXA / JSS vendor folders …"],
+  "contentRoots": ["/sitecore/content"],
+  "maxTemplateItems": 20000,
+  "maxRenderingItems": 3000,
+  "maxContentItems": 3000,
+  "samplesPerTemplate": 3,
+  "maxSampledPages": 200
+}
+```
+
 This goes per instance and falls back to these defaults.
 
 ## 10. Safety and privacy
@@ -232,14 +249,31 @@ This goes per instance and falls back to these defaults.
 
 | Step | Work | Done when |
 |---|---|---|
-| K1 | Knowledge store: folder layout, `manifest.json`, JSON schemas, `notes.md` template, read API | Unit tests read and write a sample IKB |
-| K2 | `sitecore_knowledge` tool and resources; server instructions updated | Questions answered from a fixture IKB with no Sitecore calls |
-| K3 | Discovery phases A–D (environment, sites, templates, renderings/placeholders/layouts) and the `npm run discover` CLI | Runs against a real instance; template counts match the Content Editor |
-| K4 | Layout XML parser, phase E (content map and samples), relationships and the `overview.md` generator | Overview lists page types with their renderings correctly for a sample site |
+| K1 ✅ | Knowledge store: folder layout, `manifest.json`, JSON schemas, `notes.md` template, read API | Unit tests read and write a sample IKB |
+| K2 ✅ | `sitecore_knowledge` tool and resources; server instructions updated | Questions answered from a fixture IKB with no Sitecore calls |
+| K3 ✅ | Discovery phases A–D (environment, sites, templates, renderings/placeholders/layouts) and the `npm run discover` CLI | Runs against a real instance; template counts match the Content Editor |
+| K4 ✅ | Layout XML parser, phase E (content map and samples), relationships and the `overview.md` generator | Overview lists page types with their renderings correctly for a sample site |
 | K5 | Phases F–G (forms, workflows, dictionary, media outline) | Forms listed with fields and the pages that use them |
 | K6 | Background `sitecore_discover` and `sitecore_discover_status`, section refresh, staleness in `ping` | Discovery starts from chat; progress visible; partial refresh works |
 | K7 | Cache-aware existing tools (template from cache, item `context`, create insert-options check) | `template_get` from cache under 100 ms; create warns on unusual template |
 | K8 | `sitecore-onboard` prompt; docs; smoke test that discovery is read-only (no writes in the request log) | First-run flow documented and tested end to end |
+
+### K4 as built
+
+- **Layout parser** (`src/domain/layout.ts`): reads `__Renderings` and applies the `__Final Renderings` delta (`s:` set, `p:d` delete, `p:before`/`p:after` position). Placeholder paths are reduced to keys (`/main/col-{GUID}-0` → `col`). It's reusable for the Phase 2 `sitecore_layout_get` tool.
+- **Content map** (`content-map.json`): per site, a bounded breadth-first walk (`maxContentItems`, default 3,000) that skips other sites nested under its root. It records:
+  - an outline of the top 2 levels with descendant counts
+  - template usage: count, items under Home, depth range, parent templates
+  - up to `samplesPerTemplate` (default 3) of the shallowest pages per template, with their parsed layout, capped at `maxSampledPages` (default 200) in total
+  - datasources resolved to paths when possible, and `local:` datasources resolved relative to the page
+  - rendering parameters truncated to 100 characters, with secret-looking keys dropped
+- **Relationships** (`relationships.json`): computed locally after every run once a content map exists. It holds:
+  - page types: the templates whose items have a layout, with their renderings and placeholders
+  - rendering usage, including where each rendering's datasources live
+  - placeholders in use
+  - catalogued renderings not seen on any sampled page
+- **Classification:** a template with no layout in its standard values is now classified as `page` when sampled items using it have a layout. Templates carry a `usage` block.
+- **Refresh:** `--sections sites,content-map` refreshes only the content map. The content map needs the `sites` section.
 
 Testing: extend the fake SSC server with renderings, a layout XML sample, forms and workflows, so every phase has deterministic tests. Run the real-instance smoke test in read-only mode.
 

@@ -8,11 +8,11 @@ import { loadConfig } from "../config/load.js";
 import { toUserMessage } from "../errors.js";
 import { InstanceRegistry } from "../instances.js";
 import { discover } from "../knowledge/discover.js";
-import { SECTIONS, type SectionName } from "../knowledge/types.js";
+import { SECTIONS, type DiscoverySection } from "../knowledge/types.js";
 
-function parseArgs(argv: string[]): { instance?: string; sections?: SectionName[] } {
+function parseArgs(argv: string[]): { instance?: string; sections?: DiscoverySection[] } {
   let instance: string | undefined;
-  let sections: SectionName[] | undefined;
+  let sections: DiscoverySection[] | undefined;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === "--sections") {
@@ -22,7 +22,7 @@ function parseArgs(argv: string[]): { instance?: string; sections?: SectionName[
         .filter(Boolean);
       const bad = list.filter((s) => !(SECTIONS as readonly string[]).includes(s));
       if (bad.length) throw new Error(`Unknown section(s): ${bad.join(", ")}. Valid: ${SECTIONS.join(", ")}`);
-      sections = list as SectionName[];
+      sections = list as DiscoverySection[];
     } else if (!a.startsWith("--")) {
       instance = a;
     }

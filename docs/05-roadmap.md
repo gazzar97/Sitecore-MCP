@@ -17,7 +17,10 @@
   - `npm run discover` catalogued a real 10.4 instance in ~15 min: 378 templates, 107 renderings, 24 placeholders, 18 layouts
   - `sitecore_knowledge` answers template and rendering questions in ~10 ms, compared with 25–45 s live
   - Seen on that run: the template walk dominates (~10 min); the placeholder list includes Sitecore sample and EXM placeholders
-- Next: K4 (content map, layout parsing), K5 (forms, workflows), K6–K8; then Phase 1b (Authoring GraphQL adapter for 10.3+) and Phase 2.
+- **K4 done (2026-11-16):**
+  - added the layout XML parser (shared and final delta), the content map with sampled page layouts, `relationships.json`, and page types with their renderings in `overview.md`
+  - covered by unit tests and fake-SSC tests; not yet run against a real instance
+- Next: re-run discovery on the real 10.4 instance to check K4; then K5 (forms, workflows), K6–K8; then Phase 1b (Authoring GraphQL adapter for 10.3+) and Phase 2. The K4 layout parser is the base for Phase 2 `sitecore_layout_get`.
 
 | Phase | Theme | Scope | Exit criteria |
 |---|---|---|---|

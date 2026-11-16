@@ -11,6 +11,8 @@ export const QUERY_SECTIONS = [
   "renderings",
   "placeholders",
   "layouts",
+  "content-map",
+  "relationships",
 ] as const;
 export type QuerySection = (typeof QUERY_SECTIONS)[number];
 
@@ -102,6 +104,64 @@ export async function queryKnowledge(store: KnowledgeStore, args: QueryArgs): Pr
         truncatedResults: !detailed && matches.length > args.limit,
       };
     }
+    case "content-map": {
+      const file = await store.readSection("content-map");
+      if (!file) return missing(base, "content-map");
+      const sites = file.data.sites;
+      if (!q) {
+        // Summary per site; samples and full template lists only on request.
+        return {
+          ...base,
+          generatedAt: file.generatedAt,
+          truncated: file.data.truncated,
+          sites: sites.map((s) => ({
+            site: s.site,
+            rootPath: s.rootPath,
+            homePath: s.homePath,
+            itemsWalked: s.itemsWalked,
+            truncated: s.truncated,
+            maxDepth: s.maxDepth,
+            outline: s.outline,
+            topTemplates: s.templates.slice(0, args.limit).map((t) => ({ template: t.template.name, count: t.count })),
+            sampledPages: s.samples.length,
+          })),
+          hint: 'Pass query = a site name for its full map, or a template name / path for matching templates and sample pages.',
+        };
+      }
+      const site = sites.find((s) => s.site.toLowerCase() === q.toLowerCase());
+      if (site) return { ...base, generatedAt: file.generatedAt, site };
+      return {
+        ...base,
+        generatedAt: file.generatedAt,
+        results: sites
+          .map((s) => ({
+            site: s.site,
+            templates: s.templates.filter((t) => contains(t.template.name, q) || t.template.id === q.toUpperCase()),
+            samples: s.samples.filter((p) => contains(p.template.name, q) || contains(p.path, q)).slice(0, args.limit),
+          }))
+          .filter((s) => s.templates.length > 0 || s.samples.length > 0),
+      };
+    }
+    case "relationships": {
+      const file = await store.readSection("relationships");
+      if (!file) return missing(base, "content-map");
+      const d = file.data;
+      const pageTypes = d.pageTypes.filter((p) => !q || contains(p.template.name, q) || p.template.id === q.toUpperCase());
+      const renderingUsage = d.renderingUsage.filter(
+        (r) => !q || contains(r.rendering.name, q) || r.rendering.id === q.toUpperCase(),
+      );
+      const placeholderUsage = d.placeholderUsage.filter((p) => !q || contains(p.key, q));
+      return {
+        ...base,
+        generatedAt: file.generatedAt,
+        sampledPages: d.sampledPages,
+        pageTypes: pageTypes.slice(0, args.limit),
+        renderingUsage: renderingUsage.slice(0, args.limit),
+        placeholderUsage: placeholderUsage.slice(0, args.limit),
+        unusedRenderings: q ? undefined : d.unusedRenderings.slice(0, args.limit).map((r) => r.name),
+        note: "Rendering usage is based on sampled pages, not every page.",
+      };
+    }
     case "placeholders": {
       const file = await store.readSection("placeholders");
       if (!file) return missing(base, "placeholders");
@@ -133,6 +193,7 @@ function templateSummary(t: KnowledgeTemplate) {
     name: t.name,
     path: t.path,
     kind: t.kind,
+    items: t.usage?.items,
     ownFields: t.ownFields.length,
     insertOptions: t.insertOptions.map((r) => r.name),
     datasourceFor: t.datasourceFor.map((r) => r.name),

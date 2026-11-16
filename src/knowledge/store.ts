@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -145,8 +145,30 @@ export class KnowledgeStore {
   private async writeAtomic(file: string, content: string): Promise<void> {
     await mkdir(this.dir, { recursive: true });
     const target = join(this.dir, file);
-    const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
+    const tmp = `${target}.${process.pid}.${Date.now()}.${++tmpCounter}.tmp`;
     await writeFile(tmp, content, "utf8");
-    await rename(tmp, target);
+    await renameWithRetry(tmp, target);
+  }
+}
+
+let tmpCounter = 0;
+
+/**
+ * On Windows, rename onto a file that another process (antivirus, indexer, a concurrent reader) briefly
+ * holds open fails with EPERM/EBUSY/EACCES. Those clear within milliseconds, so retry with a short backoff.
+ */
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (attempt >= 8 || !(code === "EPERM" || code === "EBUSY" || code === "EACCES")) {
+        await unlink(from).catch(() => {});
+        throw err;
+      }
+      await new Promise((r) => setTimeout(r, 10 * 2 ** attempt));
+    }
   }
 }

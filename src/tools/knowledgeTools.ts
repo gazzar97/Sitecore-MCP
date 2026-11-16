@@ -12,14 +12,19 @@ export function registerKnowledgeTools(server: McpServer, registry: InstanceRegi
       title: "Read the instance knowledge base",
       description:
         "Answers questions about an instance's structure from its local knowledge base (built once by discovery): " +
-        "sites, templates (kind, fields incl. inherited, insert options, where allowed), renderings (type, component, " +
-        "datasource template/location), placeholders, layouts, plus the user's notes. Instant, no Sitecore calls. " +
+        "sites, templates (kind, fields incl. inherited, insert options, where allowed, item counts), renderings (type, component, " +
+        "datasource template/location), placeholders, layouts, content-map (site outline, template usage, sample pages with " +
+        "their renderings) and relationships (page types -> renderings, rendering usage, placeholders in use), plus the " +
+        "user's notes. Instant, no Sitecore calls. " +
         'Start sessions with section="overview" and section="notes". Confirm with live tools before writing. ' +
         UNTRUSTED_NOTE,
       inputSchema: {
         instance: instanceArg,
         section: z.enum(QUERY_SECTIONS).default("overview"),
-        query: z.string().optional().describe('Filter by name/path/ID, e.g. "article" (templates, renderings, placeholders).'),
+        query: z
+          .string()
+          .optional()
+          .describe('Filter by name/path/ID, e.g. "article". For content-map: a site name, or a template name/path.'),
         kind: z.enum(["page", "datasource", "folder", "base", "other"]).optional().describe("Template kind filter."),
         limit: z.number().int().min(1).max(200).default(50),
       },
@@ -68,8 +73,9 @@ export function registerKnowledgeTools(server: McpServer, registry: InstanceRegi
             : ((await store.readOverview()) ?? `No knowledge base yet. Run: npm run discover -- ${name}`);
         return { contents: [{ uri: uri.href, mimeType: "text/markdown", text }] };
       }
-      if (!(SECTIONS as readonly string[]).includes(section)) {
-        throw new Error(`Unknown section "${section}". Valid: overview, notes, ${SECTIONS.join(", ")}`);
+      const valid: readonly string[] = [...SECTIONS, "relationships"];
+      if (!valid.includes(section)) {
+        throw new Error(`Unknown section "${section}". Valid: overview, notes, ${valid.join(", ")}`);
       }
       const file = await store.readSection(section as SectionName);
       return { contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(file) }] };

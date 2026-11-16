@@ -4,10 +4,13 @@ import { treeSearch } from "../domain/treeSearch.js";
 import type { ContentAdapter, Item } from "../domain/types.js";
 import { toUserMessage } from "../errors.js";
 import { isGuid, normalizeId, normalizePath, parseIdList } from "../util/ids.js";
+import { discoverContentMap } from "./contentMap.js";
 import { generateOverview } from "./overview.js";
+import { applyContentUsage, buildRelationships } from "./relationships.js";
 import type { KnowledgeStore } from "./store.js";
 import {
   SECTIONS,
+  type DiscoverySection,
   type EnvironmentInfo,
   type KnowledgeField,
   type KnowledgePlaceholder,
@@ -27,7 +30,7 @@ import {
 } from "./types.js";
 
 /**
- * First-run discovery (docs/08-instance-knowledge-base.md, phases A–D).
+ * First-run discovery (docs/08-instance-knowledge-base.md, phases A–E, then local relationships).
  * READ-ONLY against Sitecore: only adapter read methods are used. Writes go to the local knowledge folder.
  */
 
@@ -38,7 +41,7 @@ export interface DiscoverContext {
 }
 
 export interface DiscoverOptions {
-  sections?: SectionName[];
+  sections?: DiscoverySection[];
   onProgress?: (message: string) => void;
 }
 
@@ -90,7 +93,7 @@ const MODULE_CHECKS: { key: keyof EnvironmentInfo["modules"]; path: string }[] =
 
 export async function discover(ctx: DiscoverContext, store: KnowledgeStore, opts: DiscoverOptions = {}): Promise<DiscoverResult> {
   const started = Date.now();
-  const wanted = new Set<SectionName>(opts.sections && opts.sections.length > 0 ? opts.sections : SECTIONS);
+  const wanted = new Set<DiscoverySection>(opts.sections && opts.sections.length > 0 ? opts.sections : SECTIONS);
   const log = opts.onProgress ?? (() => {});
   const loc = { database: DB, language: ctx.config.defaultLanguage };
   const result: DiscoverResult = { instance: ctx.name, dir: store.dir, durationMs: 0, sections: {} };
@@ -98,7 +101,7 @@ export async function discover(ctx: DiscoverContext, store: KnowledgeStore, opts
   let sitecoreVersion: string | undefined = (await store.readManifest())?.sitecoreVersion;
   const info = () => ({ cmUrl: ctx.config.cmUrl, sitecoreVersion });
 
-  const phase = async <K extends SectionName>(
+  const phase = async <K extends DiscoverySection>(
     name: K,
     run: () => Promise<{ data: SectionDataMap[K]; count: number; truncated: boolean }>,
   ) => {
@@ -285,8 +288,39 @@ export async function discover(ctx: DiscoverContext, store: KnowledgeStore, opts
     return { data, count: layouts.length, truncated: w.truncated };
   });
 
-  // ---------------------------------------------------------------- finalize
-  if (wanted.has("templates") || wanted.has("renderings")) await relinkOnDisk(store, info());
+  // ---------------------------------------------------------------- E. content map
+  await phase("content-map", async () => {
+    const k = ctx.config.knowledge;
+    const [sites, templates, renderings, layouts] = await Promise.all([
+      store.readSection("sites"),
+      store.readSection("templates"),
+      store.readSection("renderings"),
+      store.readSection("layouts"),
+    ]);
+    if (!sites) throw new Error('The content map needs the "sites" section: discover it first (--sections sites,content-map).');
+    const data = await discoverContentMap({
+      adapter: ctx.adapter,
+      loc,
+      sites: sites.data.sites,
+      templates: templates?.data.templates ?? [],
+      renderings: renderings?.data.renderings ?? [],
+      layouts: layouts?.data,
+      resolver,
+      limits: {
+        maxContentItems: k.maxContentItems,
+        samplesPerTemplate: k.samplesPerTemplate,
+        maxSampledPages: k.maxSampledPages,
+        concurrency: ctx.config.maxConcurrency,
+      },
+      log,
+    });
+    const count = data.sites.reduce((n, s) => n + s.itemsWalked, 0);
+    return { data, count, truncated: data.truncated };
+  });
+
+  // ---------------------------------------------------------------- finalize (local only)
+  if (wanted.has("templates") || wanted.has("renderings") || wanted.has("content-map")) await relinkOnDisk(store, info());
+  await writeRelationships(store, info());
   await store.ensureNotes();
   await store.writeOverview(await generateOverview(store));
   result.durationMs = Date.now() - started;
@@ -439,6 +473,9 @@ export function linkTemplates(templates: KnowledgeTemplate[], renderings: Knowle
 
 function classify(t: KnowledgeTemplate, usedAsBaseBy: number): [TemplateKind, string] {
   if (t.hasLayout) return ["page", "standard values have a layout"];
+  if (t.usage && t.usage.sampledWithLayout > 0) {
+    return ["page", `${t.usage.sampledWithLayout} of ${t.usage.sampled} sampled items using it have a layout`];
+  }
   if (t.datasourceFor.length > 0) {
     return ["datasource", `datasource template of: ${t.datasourceFor.slice(0, 5).map((r) => r.name).join(", ")}`];
   }
@@ -488,11 +525,15 @@ export function buildRenderings(items: Item[], templates: KnowledgeTemplate[]): 
   return renderings;
 }
 
-/** Re-links templates <-> renderings from what's on disk, so refreshing either section keeps both consistent. */
+/**
+ * Re-links templates <-> renderings <-> content usage from what's on disk,
+ * so refreshing any of those sections keeps the others consistent.
+ */
 async function relinkOnDisk(store: KnowledgeStore, info: { cmUrl: string; sitecoreVersion?: string }): Promise<void> {
-  const [tFile, rFile, manifest] = await Promise.all([
+  const [tFile, rFile, cFile, manifest] = await Promise.all([
     store.readSection("templates"),
     store.readSection("renderings"),
+    store.readSection("content-map"),
     store.readManifest(),
   ]);
   if (!tFile) return;
@@ -502,6 +543,7 @@ async function relinkOnDisk(store: KnowledgeStore, info: { cmUrl: string; siteco
     datasourceTemplate: lookup(r.datasourceTemplate?.raw),
     parametersTemplate: lookup(r.parametersTemplate?.raw),
   }));
+  applyContentUsage(tFile.data.templates, cFile?.data);
   linkTemplates(tFile.data.templates, renderings);
 
   const keepMeta = (name: SectionName, count: number) => {
@@ -512,4 +554,22 @@ async function relinkOnDisk(store: KnowledgeStore, info: { cmUrl: string; siteco
   if (rFile) {
     await store.writeSection("renderings", { ...rFile.data, renderings }, keepMeta("renderings", renderings.length), info);
   }
+}
+
+/** Recomputes relationships.json from the sections on disk (needs the content map). */
+async function writeRelationships(store: KnowledgeStore, info: { cmUrl: string; sitecoreVersion?: string }): Promise<void> {
+  const [tFile, rFile, cFile] = await Promise.all([
+    store.readSection("templates"),
+    store.readSection("renderings"),
+    store.readSection("content-map"),
+  ]);
+  if (!cFile) return;
+  const t0 = Date.now();
+  const data = buildRelationships(tFile?.data.templates ?? [], rFile?.data.renderings ?? [], cFile.data);
+  await store.writeSection(
+    "relationships",
+    data,
+    { status: "ok", durationMs: Date.now() - t0, count: data.pageTypes.length, truncated: cFile.data.truncated },
+    info,
+  );
 }
