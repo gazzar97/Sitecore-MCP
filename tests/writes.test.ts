@@ -72,6 +72,24 @@ describe("write guard", () => {
     expect(() => assertWriteAllowed("update", "local", everywhere, at("/sitecore/system/Settings"))).toThrow(/protected path/);
   });
 
+  it("super admin lifts permission flags and path guards but keeps master-only and root nodes", () => {
+    const admin = instanceConfig({ superAdmin: true });
+    expect(admin.permissions.write).toBe(false); // flags not needed
+    assertWriteAllowed("update", "local", admin, at("/sitecore/system/Settings"));
+    assertWriteAllowed("create", "local", admin, at("/sitecore/templates/Project/X"));
+    assertWriteAllowed("delete", "local", admin, at("/sitecore/content/Home"));
+    assertWriteAllowed("delete", "local", admin, at("/sitecore/layout/System/Foo"));
+    expect(() => assertWriteAllowed("update", "local", admin, at("/sitecore/content/Home", "web"))).toThrow(/master and core/);
+    assertWriteAllowed("update", "local", admin, at("/sitecore/system/Languages/en", "core"));
+    assertWriteAllowed("delete", "local", admin, at("/sitecore/content/Applications/Foo", "core"));
+    expect(() => assertWriteAllowed("delete", "local", admin, at("/sitecore/system", "core"))).toThrow(/root node/);
+    // core stays blocked without super admin
+    expect(() => assertWriteAllowed("update", "local", writable, at("/sitecore/content/Home", "core"))).toThrow(/master/);
+    expect(() => assertWriteAllowed("delete", "local", admin, at("/sitecore/content"))).toThrow(/root node/);
+    expect(() => assertWriteAllowed("delete", "local", admin, at("/sitecore"))).toThrow(/root node/);
+    assertWriteAllowed("update", "local", admin, at("/sitecore/content"));
+  });
+
   it("never deletes a write root itself", () => {
     expect(() => assertWriteAllowed("delete", "local", writable, at("/sitecore/content/Home"))).toThrow(/strictly below/);
     assertWriteAllowed("delete", "local", writable, at("/sitecore/content/Home/About"));
@@ -132,6 +150,13 @@ describe("updateItem", () => {
     });
     expect(res.changes).toEqual([{ field: "Title", before: "About us", after: "About the company", changed: true }]);
     expect(fake.writes()).toHaveLength(0);
+  });
+
+  it("targets core only in super admin mode", async () => {
+    const args = { idOrPath: IDS.about, fields: { Title: "x" }, language: "en", dryRun: true, database: "core" as const };
+    await expect(updateItem(setup().ctx, args)).rejects.toThrow(/master/);
+    const res = await updateItem(setup({ superAdmin: true }).ctx, args);
+    expect(res).toMatchObject({ dryRun: true, database: "core" });
   });
 
   it("writes only changed fields and confirms by re-reading", async () => {
@@ -207,5 +232,7 @@ describe("tool registration", () => {
     expect(writeOnly).not.toContain("sitecore_item_delete");
     const del = (await tools({ permissions: { write: true, delete: true } })).find((t) => t.name === "sitecore_item_delete")!;
     expect(del.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    const admin = (await tools({ superAdmin: true })).map((t) => t.name);
+    expect(admin).toEqual(expect.arrayContaining(["sitecore_item_create", "sitecore_item_update", "sitecore_item_delete"]));
   });
 });

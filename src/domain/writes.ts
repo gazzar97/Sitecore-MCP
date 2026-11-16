@@ -1,5 +1,5 @@
 import type { AuditLog } from "../audit/auditLog.js";
-import type { InstanceConfig } from "../config/schema.js";
+import type { Database, InstanceConfig } from "../config/schema.js";
 import { NotFoundError, SitecoreMcpError, toUserMessage } from "../errors.js";
 import { truncate } from "../formatting/format.js";
 import { assertValidItemName, assertWriteAllowed } from "../safety/writeGuard.js";
@@ -16,7 +16,8 @@ export interface WriteContext {
 }
 
 const PREVIEW = 200;
-const DB = "master" as const;
+/** Writes default to master; core is accepted only in super admin mode (enforced by assertWriteAllowed). */
+const DEFAULT_DB: Database = "master";
 
 /** Runs a write, recording success or failure in the audit log. */
 async function audited<T extends { id?: string; path?: string }>(
@@ -65,11 +66,14 @@ export interface CreateArgs {
   fields: Record<string, string>;
   language: string;
   dryRun: boolean;
+  /** Target database (default master). */
+  database?: Database;
   allowDuplicateName: boolean;
 }
 
 export async function createItem(ctx: WriteContext, args: CreateArgs) {
   return audited(ctx, "sitecore_item_create", args.dryRun, { ...args }, async () => {
+    const DB = args.database ?? DEFAULT_DB;
     assertValidItemName(args.name);
     const loc = { database: DB, language: args.language };
     const [parent, template, siblings] = await Promise.all([
@@ -115,6 +119,7 @@ export async function createItem(ctx: WriteContext, args: CreateArgs) {
     const plan = {
       operation: "create" as const,
       instance: ctx.name,
+      database: DB,
       path: `${normalizePath(parent.path)}/${args.name}`,
       parent: { id: parent.id, path: parent.path },
       template: { id: template.id, name: template.name, path: template.path },
@@ -152,16 +157,19 @@ export interface UpdateArgs {
   language: string;
   version?: number;
   dryRun: boolean;
+  /** Target database (default master). */
+  database?: Database;
 }
 
 export async function updateItem(ctx: WriteContext, args: UpdateArgs) {
   return audited(ctx, "sitecore_item_update", args.dryRun, { ...args }, async () => {
+    const DB = args.database ?? DEFAULT_DB;
     const names = Object.keys(args.fields);
     if (names.length === 0) throw new SitecoreMcpError("No fields to update.");
     const ref = { idOrPath: args.idOrPath, database: DB, language: args.language, version: args.version };
 
     const item = await ctx.adapter.getItem(ref, { includeStandardFields: hasStandardFieldNames(args.fields) });
-    if (!item) throw new NotFoundError(`Item not found: ${args.idOrPath} (master/${args.language})`);
+    if (!item) throw new NotFoundError(`Item not found: ${args.idOrPath} (${DB}/${args.language})`);
     assertWriteAllowed("update", ctx.name, ctx.config, { path: item.path, database: DB });
     if (!item.version) {
       throw new SitecoreMcpError(
@@ -184,6 +192,7 @@ export async function updateItem(ctx: WriteContext, args: UpdateArgs) {
     const plan = {
       operation: "update" as const,
       instance: ctx.name,
+      database: DB,
       id: item.id,
       path: item.path,
       language: item.language || args.language,
@@ -210,13 +219,16 @@ export interface DeleteArgs {
   idOrPath: string;
   includeChildren: boolean;
   dryRun: boolean;
+  /** Target database (default master). */
+  database?: Database;
 }
 
 export async function deleteItem(ctx: WriteContext, args: DeleteArgs) {
   return audited(ctx, "sitecore_item_delete", args.dryRun, { ...args }, async () => {
+    const DB = args.database ?? DEFAULT_DB;
     const loc = { database: DB, language: ctx.config.defaultLanguage };
     const item = await ctx.adapter.getItem({ idOrPath: args.idOrPath, ...loc }, { fields: ["__Sortorder"] });
-    if (!item) throw new NotFoundError(`Item not found: ${args.idOrPath} (master)`);
+    if (!item) throw new NotFoundError(`Item not found: ${args.idOrPath} (${DB})`);
     assertWriteAllowed("delete", ctx.name, ctx.config, { path: item.path, database: DB });
 
     const max = ctx.config.maxDeleteItems;
@@ -246,6 +258,7 @@ export async function deleteItem(ctx: WriteContext, args: DeleteArgs) {
     const plan = {
       operation: "delete" as const,
       instance: ctx.name,
+      database: DB,
       id: item.id,
       path: item.path,
       template: item.templateName,

@@ -11,6 +11,13 @@ async function main(): Promise<void> {
   try {
     const loaded = loadConfig();
     console.error(`[sitecore-mcp] using config ${loaded.path}`);
+    for (const [name, inst] of Object.entries(loaded.config.instances)) {
+      if (inst.superAdmin) {
+        console.error(
+          `[sitecore-mcp] WARNING: instance "${name}" runs in SUPER ADMIN mode: writes/deletes allowed anywhere in master and core.`,
+        );
+      }
+    }
     registry = new InstanceRegistry(loaded);
   } catch (err) {
     // Start anyway so the client can surface the error via sitecore_instances_list.

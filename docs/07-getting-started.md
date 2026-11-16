@@ -115,6 +115,26 @@ Writes are **off** by default. Turn them on per instance in the config, then res
 | `writeRoots` | Writes only at or below these paths (default `["/sitecore/content"]`). A write root itself can never be deleted. |
 | `maxDeleteItems` | Refuse deletes whose subtree has more items than this (default 50) |
 | `auditLogPath` (top level) | Where every write attempt is logged (default `~/.sitecore-mcp/audit.log`) |
+| `superAdmin` | Super admin mode, default `false`. See below. |
+
+### Super admin mode
+
+For a disposable local instance where you want the MCP to be able to change anything, set:
+
+```json
+"projectA": {
+  "...": "...",
+  "superAdmin": true
+}
+```
+
+When `superAdmin` is `true`:
+- create, update and delete are enabled (no need to set `permissions`)
+- `writeRoots` is ignored: any item under `/sitecore` in `master` can be written
+- the protected paths (`/sitecore/system`, `/sitecore/templates/System`, `/sitecore/layout/System`) become writable
+- the `core` database becomes writable too: pass `database: "core"` to the create/update/delete tools (default is `master`)
+
+What still applies: `web` is never writable (publish instead); `/sitecore` and its top-level nodes (`/sitecore/content`, `/sitecore/system`, …) can never be deleted; deletes go to the Recycle Bin and respect `maxDeleteItems`; the local-host check; the audit log; and your AI client's approval prompt. The server prints a warning on startup for each super admin instance. Don't turn it on for shared or production-like environments.
 
 These rules always apply, whatever the config says:
 - writes go to the `master` database only

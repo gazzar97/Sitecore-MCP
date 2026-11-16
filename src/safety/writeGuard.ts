@@ -16,9 +16,25 @@ export function isStrictlyUnder(path: string, root: string): boolean {
   return isAtOrUnder(path, root) && normalizePath(path).toLowerCase() !== normalizePath(root).toLowerCase();
 }
 
+/** Never deletable, even in super admin mode: the root and its top-level nodes. */
+export const UNDELETABLE_ROOT = "/sitecore";
+
+/** Databases writable in super admin mode (normal mode: master only). */
+export const SUPER_ADMIN_DATABASES: readonly Database[] = ["master", "core"];
+
+/** Effective permissions: super admin implies write and delete. */
+export function canWrite(inst: InstanceConfig): boolean {
+  return inst.superAdmin || inst.permissions.write;
+}
+export function canDelete(inst: InstanceConfig): boolean {
+  return inst.superAdmin || (inst.permissions.write && inst.permissions.delete);
+}
+
 /**
  * Enforces the write guard layers (docs/04-security-safety.md):
  * permission flags, master-only, blocked system paths, and writeRoots.
+ * Super admin mode lifts the permission flags and both path guards and also allows the core
+ * database; web stays blocked and the undeletable root nodes still apply.
  * `path` is the parent path for create, the item path for update/delete.
  */
 export function assertWriteAllowed(
@@ -28,6 +44,23 @@ export function assertWriteAllowed(
   target: { path: string; database: Database },
 ): void {
   const cfgHint = `~/.sitecore-mcp/config.json -> instances.${instanceName}`;
+  if (inst.superAdmin) {
+    if (!SUPER_ADMIN_DATABASES.includes(target.database)) {
+      throw new WriteNotAllowedError(
+        `Super admin writes are only allowed in the ${SUPER_ADMIN_DATABASES.join(" and ")} databases (got "${target.database}").`,
+        "The web database is filled by publishing; publish from master instead.",
+      );
+    }
+    if (!isAtOrUnder(target.path, UNDELETABLE_ROOT)) {
+      throw new WriteNotAllowedError(`"${target.path}" is not under ${UNDELETABLE_ROOT}.`);
+    }
+    // Deleting /sitecore or /sitecore/<node> would break the instance.
+    const depth = normalizePath(target.path).split("/").filter(Boolean).length;
+    if (op === "delete" && depth <= 2) {
+      throw new WriteNotAllowedError(`"${target.path}" is a Sitecore root node and can never be deleted.`);
+    }
+    return;
+  }
   if (!inst.permissions.write) {
     throw new WriteNotAllowedError(
       `Writes are disabled for instance "${instanceName}".`,

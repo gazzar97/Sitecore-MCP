@@ -10,6 +10,7 @@ import type { ContentAdapter } from "./domain/types.js";
 import { ConfigError } from "./errors.js";
 import { createNodeTransport, type HttpTransport } from "./http/transport.js";
 import { assertLocalUrl, type LookupAll } from "./safety/hostGuard.js";
+import { canDelete, canWrite } from "./safety/writeGuard.js";
 
 export interface InstanceContext {
   name: string;
@@ -50,9 +51,7 @@ export class InstanceRegistry {
   /** True if any configured instance allows the given write permission. */
   anyInstanceAllows(permission: "write" | "delete"): boolean {
     if ("error" in this.state) return false;
-    return Object.values(this.state.config.instances).some(
-      (i) => i.permissions.write && (permission === "write" || i.permissions.delete),
-    );
+    return Object.values(this.state.config.instances).some((i) => (permission === "write" ? canWrite(i) : canDelete(i)));
   }
 
   get config(): SitecoreMcpConfig {

@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { toUserMessage } from "../errors.js";
 import type { InstanceRegistry } from "../instances.js";
+import { canDelete, canWrite } from "../safety/writeGuard.js";
 import { READ_ONLY_ANNOTATIONS, instanceArg, run } from "./common.js";
 
 export function registerInstanceTools(server: McpServer, registry: InstanceRegistry): void {
@@ -31,9 +32,10 @@ export function registerInstanceTools(server: McpServer, registry: InstanceRegis
             defaultDatabase: i.defaultDatabase,
             defaultLanguage: i.defaultLanguage,
             logs: i.logs ? (i.logs.source === "file" ? `file:${i.logs.path}` : `docker:${i.logs.container}`) : null,
-            writeEnabled: i.permissions.write,
-            deleteEnabled: i.permissions.write && i.permissions.delete,
-            writeRoots: i.permissions.write ? i.writeRoots : undefined,
+            superAdmin: i.superAdmin || undefined,
+            writeEnabled: canWrite(i),
+            deleteEnabled: canDelete(i),
+            writeRoots: i.superAdmin ? ["/sitecore in master + core (super admin)"] : i.permissions.write ? i.writeRoots : undefined,
           })),
         };
       }),

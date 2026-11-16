@@ -20,6 +20,7 @@ describe("parseConfig", () => {
     expect(i.defaultLanguage).toBe("en");
     expect(i.allowInsecureTls).toBe(false);
     expect(i.permissions).toEqual({ write: false, publish: false, delete: false });
+    expect(i.superAdmin).toBe(false);
     expect(cfg.output.maxFieldLength).toBe(500);
   });
 

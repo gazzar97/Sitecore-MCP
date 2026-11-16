@@ -88,6 +88,8 @@ Safety rules that always apply:
 
 Claude Code also asks you to approve each write.
 
+**Super admin mode:** on a throwaway local instance you can add `"superAdmin": true` to let Claude create, update and delete anywhere in `master` and `core` (no `writeRoots`, system paths writable). `web` stays blocked, Recycle Bin deletes, audited, and `/sitecore` and its top-level nodes can't be deleted. Details: [getting started](docs/07-getting-started.md#super-admin-mode).
+
 ## Tools
 
 | Tool | What it does |

@@ -24,6 +24,10 @@ The server gives an AI agent the ability to change a Sitecore instance. Even loc
 | Client confirmation | Rely on MCP client approval prompts; tools annotated with `destructiveHint` / `readOnlyHint` |
 | Audit log | Append-only JSONL: timestamp, instance, tool, args (redacted), result |
 
+### Super admin mode
+
+`superAdmin: true` on an instance (default `false`) implies write + delete and lifts the path guard (both `writeRoots` and the protected system paths). It also allows writes to the `core` database (tools take `database: "master" | "core"`, default master). It keeps: `web` blocked, a hard floor that `/sitecore` and its direct children can never be deleted, Recycle Bin deletes, `maxDeleteItems`, the host guard, and the audit log. Implemented in `assertWriteAllowed` (`src/safety/writeGuard.ts`); a startup warning is printed to stderr.
+
 ## SPE remoting risk
 
 SPE remoting = arbitrary code execution on the CM. If supported:

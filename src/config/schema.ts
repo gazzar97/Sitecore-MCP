@@ -50,6 +50,13 @@ export const instanceSchema = z.object({
       publish: z.boolean().default(false),
     })
     .default({}),
+  /**
+   * Super admin mode (OFF by default). When true, write and delete are enabled and the path guards
+   * (writeRoots and the protected system paths) are lifted, so the MCP can change any item in master.
+   * Still master-only, Recycle Bin deletes, maxDeleteItems, audit log, and /sitecore + its top-level
+   * nodes can never be deleted. See docs/04-security-safety.md.
+   */
+  superAdmin: z.boolean().default(false),
   /** Writes are only allowed at or below these paths (master database only). */
   writeRoots: z.array(z.string().min(1)).default(["/sitecore/content"]),
   /** Refuse to delete an item whose subtree has more items than this. */

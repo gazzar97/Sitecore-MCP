@@ -17,7 +17,8 @@ export function createServer(registry: InstanceRegistry): McpServer {
     {
       instructions:
         "Access to LOCAL Sitecore development instances. Read tools are always available; create/update/delete tools " +
-        "appear only when an instance enables write permissions, and are limited to master + configured writeRoots. " +
+        "appear only when an instance enables write permissions, and are limited to master + configured writeRoots " +
+        "(an instance in super admin mode may write anywhere under /sitecore in master or core). " +
         "Prefer dryRun=true before writing. " +
         'Before answering questions about an instance\'s structure, call sitecore_knowledge with section="overview" ' +
         'and section="notes": use the knowledge base to resolve names to IDs/paths, pick templates and renderings, and ' +
